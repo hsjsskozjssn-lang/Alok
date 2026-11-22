@@ -60,7 +60,7 @@ export function HomeScreen({
               Pinkora PDF
             </div>
             <div className="text-xs text-[#647084] dark:text-[#A8B3C7]">
-              Created by Alok
+              Created by Alok · Support by Harshit
             </div>
           </div>
         </div>

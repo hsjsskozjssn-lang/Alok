@@ -209,7 +209,7 @@ export function SettingsScreen({
           <div>
             <h2 className="text-sm font-bold">Pinkora PDF App</h2>
             <p className="mt-0.5 text-xs text-[#647084] dark:text-[#A8B3C7]">
-              Created by Alok · Offline-ready PWA
+              Created by Alok · Support by Harshit · Offline-ready PWA
             </p>
           </div>
           <div className="w-full sm:w-auto">

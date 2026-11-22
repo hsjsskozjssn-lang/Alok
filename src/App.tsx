@@ -281,7 +281,7 @@ export default function App() {
         </div>
 
         <div className="px-2 pt-4 border-t border-[#D9E4F8] dark:border-[#27354F] text-xs text-[#647084] dark:text-[#A8B3C7]">
-          Made by Alok · 100% local
+          Made by Alok · Support by Harshit · 100% local
         </div>
       </aside>
 
