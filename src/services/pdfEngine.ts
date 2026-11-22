@@ -1,3 +1,6 @@
+import { Capacitor } from '@capacitor/core';
+import { Directory, Filesystem } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
 import { PDFDocument, StandardFonts, degrees, rgb } from '@cantoo/pdf-lib';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
@@ -544,11 +547,85 @@ export async function compressPdf(
   }
 }
 
+function uint8ArrayToBase64(bytes: Uint8Array): string {
+  const chunkSize = 0x8000;
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
+}
+
+function sanitizeSafeFileName(filename: string): string {
+  return filename.replace(/[<>:"/\\|?*\x00-\x1F]/g, '_').trim() || 'document.pdf';
+}
+
+async function saveBase64FileNatively(
+  base64Data: string,
+  cleanName: string
+): Promise<string> {
+  const safeName = sanitizeSafeFileName(cleanName);
+
+  try {
+    const perm = await Filesystem.checkPermissions();
+    if (perm.publicStorage !== 'granted') {
+      await Filesystem.requestPermissions();
+    }
+  } catch {
+    // Android 11+ Scoped Storage allows app-created Documents files without legacy storage permission.
+  }
+
+  try {
+    await Filesystem.writeFile({
+      path: `Pinkora PDF/${safeName}`,
+      data: base64Data,
+      directory: Directory.Documents,
+      recursive: true,
+    });
+    return `Documents/Pinkora PDF/${safeName}`;
+  } catch {
+    const dotIdx = safeName.lastIndexOf('.');
+    const stem = dotIdx > 0 ? safeName.slice(0, dotIdx) : safeName;
+    const ext = dotIdx > 0 ? safeName.slice(dotIdx) : '';
+    const uniqueName = `${stem}_${Date.now()}${ext}`;
+
+    try {
+      await Filesystem.writeFile({
+        path: `Pinkora PDF/${uniqueName}`,
+        data: base64Data,
+        directory: Directory.Documents,
+        recursive: true,
+      });
+      return `Documents/Pinkora PDF/${uniqueName}`;
+    } catch {
+      const cacheRes = await Filesystem.writeFile({
+        path: `export/${Date.now()}_${safeName}`,
+        data: base64Data,
+        directory: Directory.Cache,
+        recursive: true,
+      });
+      await Share.share({
+        title: safeName,
+        dialogTitle: `Save ${safeName}`,
+        files: [cacheRes.uri],
+      });
+      return safeName;
+    }
+  }
+}
+
 export async function savePdfToDevice(
   pdfBytes: Uint8Array,
   filename: string
-): Promise<void> {
+): Promise<string> {
   const cleanName = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;
+
+  if (Capacitor.isNativePlatform()) {
+    const base64 = uint8ArrayToBase64(pdfBytes);
+    return saveBase64FileNatively(base64, cleanName);
+  }
+
   const copy = new Uint8Array(pdfBytes);
   const blob = new Blob([copy], { type: 'application/pdf' });
 
@@ -573,7 +650,7 @@ export async function savePdfToDevice(
       const writable = await handle.createWritable();
       await writable.write(blob);
       await writable.close();
-      return;
+      return cleanName;
     } catch (err) {
       if ((err as Error)?.name === 'AbortError') throw err;
     }
@@ -588,13 +665,62 @@ export async function savePdfToDevice(
   a.click();
   a.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 4000);
+  return cleanName;
+}
+
+export async function saveImageDataUrlToDevice(
+  dataUrl: string,
+  filename: string
+): Promise<string> {
+  const cleanName = filename.toLowerCase().endsWith('.png') ? filename : `${filename}.png`;
+
+  if (Capacitor.isNativePlatform()) {
+    const base64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+    return saveBase64FileNatively(base64, cleanName);
+  }
+
+  const a = document.createElement('a');
+  a.href = dataUrl;
+  a.download = cleanName;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  return cleanName;
 }
 
 export async function sharePdfDocument(
   pdfBytes: Uint8Array,
   filename: string
-): Promise<'shared' | 'downloaded'> {
+): Promise<'shared' | 'downloaded' | 'cancelled'> {
   const cleanName = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;
+
+  if (Capacitor.isNativePlatform()) {
+    const safeName = sanitizeSafeFileName(cleanName);
+    const base64 = uint8ArrayToBase64(pdfBytes);
+    const writeRes = await Filesystem.writeFile({
+      path: `share/${Date.now()}_${safeName}`,
+      data: base64,
+      directory: Directory.Cache,
+      recursive: true,
+    });
+
+    try {
+      await Share.share({
+        title: cleanName,
+        dialogTitle: `Share ${cleanName}`,
+        files: [writeRes.uri],
+      });
+      return 'shared';
+    } catch (err) {
+      const msg = ((err as Error)?.message || '').toLowerCase();
+      if (msg.includes('cancel')) {
+        return 'cancelled';
+      }
+      throw err;
+    }
+  }
+
   const copy = new Uint8Array(pdfBytes);
   const file = new File([copy], cleanName, { type: 'application/pdf' });
 

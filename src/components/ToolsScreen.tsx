@@ -33,6 +33,7 @@ import {
   renderAllPdfThumbnails,
   renderPdfPagesAsImages,
   rotatePdfPages,
+  saveImageDataUrlToDevice,
   splitPdfByRange,
 } from '../services/pdfEngine';
 import { ensureUniqueFilename, formatBytes } from '../services/storage';
@@ -325,13 +326,8 @@ export function ToolsScreen({
     }
   };
 
-  const downloadImageDataUrl = (dataUrl: string, filename: string) => {
-    const a = document.createElement('a');
-    a.href = dataUrl;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+  const downloadImageDataUrl = async (dataUrl: string, filename: string) => {
+    return saveImageDataUrlToDevice(dataUrl, filename);
   };
 
   const tools = [
@@ -1006,9 +1002,13 @@ export function ToolsScreen({
                           </span>
                           <button
                             type="button"
-                            onClick={() => {
-                              downloadImageDataUrl(img.dataUrl, outName);
-                              onNotify('success', `Downloaded ${outName}`);
+                            onClick={async () => {
+                              try {
+                                const savedAt = await downloadImageDataUrl(img.dataUrl, outName);
+                                onNotify('success', `Saved ${savedAt}`);
+                              } catch {
+                                onNotify('error', `Could not save ${outName}`);
+                              }
                             }}
                             aria-label={`Download page ${img.page} PNG`}
                             className="min-h-[36px] px-2.5 rounded-lg bg-[#E0ECFF] dark:bg-[#1D2A44] text-[#1D4ED8] dark:text-[#60A5FA] text-xs font-semibold inline-flex items-center gap-1"
@@ -1025,14 +1025,24 @@ export function ToolsScreen({
                 {renderedImages.length > 1 && (
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       const stem = selectedPdf.name.replace(/\.pdf$/i, '');
-                      renderedImages.forEach((img, idx) => {
-                        window.setTimeout(() => {
-                          downloadImageDataUrl(img.dataUrl, `${stem}_page_${img.page}.png`);
-                        }, idx * 220);
-                      });
-                      onNotify('success', `Exporting ${renderedImages.length} PNG images...`);
+                      onNotify('info', `Saving ${renderedImages.length} PNG images...`);
+                      let savedCount = 0;
+                      for (const img of renderedImages) {
+                        try {
+                          await downloadImageDataUrl(img.dataUrl, `${stem}_page_${img.page}.png`);
+                          savedCount++;
+                        } catch {
+                          // continue remaining pages
+                        }
+                      }
+                      onNotify(
+                        savedCount > 0 ? 'success' : 'error',
+                        savedCount > 0
+                          ? `Saved ${savedCount} PNG images.`
+                          : 'Could not save PNG images.'
+                      );
                     }}
                     className="w-full min-h-[48px] rounded-2xl bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-sm font-bold inline-flex items-center justify-center gap-2"
                   >

@@ -147,11 +147,12 @@ export function PdfViewerModal({
   const handleShare = async () => {
     try {
       const outcome = await sharePdfDocument(documentRecord.pdfBytes, documentRecord.name);
+      if (outcome === 'cancelled') return;
       onNotify(
         'success',
         outcome === 'shared'
           ? 'Shared PDF document.'
-          : 'Share sheet unavailable here — downloaded PDF copy instead.'
+          : 'Share sheet unavailable here — saved PDF copy instead.'
       );
     } catch (err) {
       if ((err as Error)?.name !== 'AbortError') {

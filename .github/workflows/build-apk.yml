@@ -44,11 +44,23 @@ jobs:
 
       - name: Package Android project with Capacitor
         run: |
-          npm install --no-save --legacy-peer-deps @capacitor/core @capacitor/cli @capacitor/android
+          npm install --no-save --legacy-peer-deps @capacitor/cli@^8.6.2 @capacitor/android@^8.6.2
           if [ ! -d "android" ]; then
             npx cap add android
           fi
           npx cap sync android
+          node -e "
+            const fs = require('fs');
+            const p = 'android/app/src/main/AndroidManifest.xml';
+            let xml = fs.readFileSync(p, 'utf8');
+            if (!xml.includes('android.permission.CAMERA')) {
+              xml = xml.replace('<application', '<uses-permission android:name=\"android.permission.CAMERA\" />\n    <application');
+            }
+            if (!xml.includes('android:requestLegacyExternalStorage')) {
+              xml = xml.replace('<application', '<application android:requestLegacyExternalStorage=\"true\"');
+            }
+            fs.writeFileSync(p, xml);
+          "
 
       - name: Build Debug APK
         working-directory: android

@@ -156,11 +156,12 @@ export default function App() {
   const handleShareDoc = async (doc: PdfDocumentRecord) => {
     try {
       const res = await sharePdfDocument(doc.pdfBytes, doc.name);
+      if (res === 'cancelled') return;
       notify(
         'success',
         res === 'shared'
           ? `Shared "${doc.name}".`
-          : `Downloaded "${doc.name}" (browser share sheet unavailable here).`
+          : `Saved "${doc.name}" to your device (share sheet unavailable here).`
       );
     } catch (err) {
       if ((err as Error)?.name !== 'AbortError') {

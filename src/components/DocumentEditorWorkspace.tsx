@@ -344,11 +344,12 @@ export function DocumentEditorWorkspace({
               onClick={async () => {
                 try {
                   const res = await sharePdfDocument(createdDoc.pdfBytes, createdDoc.name);
+                  if (res === 'cancelled') return;
                   onNotify(
                     'success',
                     res === 'shared'
                       ? 'Shared PDF document.'
-                      : 'Browser share unavailable here — downloaded PDF copy instead.'
+                      : 'Share sheet unavailable here — saved PDF copy instead.'
                   );
                 } catch (err) {
                   if ((err as Error)?.name !== 'AbortError') {
@@ -369,8 +370,8 @@ export function DocumentEditorWorkspace({
                   return;
                 }
                 try {
-                  await savePdfToDevice(createdDoc.pdfBytes, createdDoc.name);
-                  onNotify('success', 'Saved PDF copy to your device.');
+                  const savedAt = await savePdfToDevice(createdDoc.pdfBytes, createdDoc.name);
+                  onNotify('success', `Saved PDF to ${savedAt}`);
                 } catch (err) {
                   if ((err as Error)?.name !== 'AbortError') {
                     onNotify('error', 'Could not export PDF file.');

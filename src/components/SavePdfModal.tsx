@@ -76,12 +76,12 @@ export function SavePdfModal({
         }
       }
 
-      await savePdfToDevice(bytesToSave, cleanName);
+      const savedAt = await savePdfToDevice(bytesToSave, cleanName);
       onNotify(
         'success',
         protectEnabled
-          ? `Downloaded password-protected "${cleanName}".`
-          : `Downloaded "${cleanName}".`
+          ? `Saved password-protected PDF to ${savedAt}`
+          : `Saved PDF to ${savedAt}`
       );
       onClose();
     } catch (err) {
